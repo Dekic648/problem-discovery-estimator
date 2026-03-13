@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Problem Discovery Estimator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg-secondary: #f5f4f0; --bg-tertiary: #eeecea;
+    --text-primary: #1a1a18; --text-secondary: #5f5e5a; --text-tertiary: #888780;
+    --border: rgba(0,0,0,0.12); --border-md: rgba(0,0,0,0.22);
+    --radius-md: 8px; --radius-lg: 12px;
+    --purple: #7F77DD; --purple-dark: #534AB7;
+    --teal: #1D9E75; --amber: #BA7517; --red: #E24B4A; --coral: #D85A30;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2e2e2b;
+      --text-primary: #f0ede8; --text-secondary: #b4b2a9; --text-tertiary: #888780;
+      --border: rgba(255,255,255,0.1); --border-md: rgba(255,255,255,0.2);
+      --purple: #9F99E8; --purple-dark: #AFA9EC;
+      --teal: #5DCAA5; --amber: #EF9F27; --red: #F09595; --coral: #F0997B;
+    }
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-tertiary); color: var(--text-primary);
+    min-height: 100vh; padding: 2rem 1rem; line-height: 1.5;
+  }
+  .page {
+    max-width: 820px; margin: 0 auto;
+    background: var(--bg); border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border); padding: 2rem 2.5rem;
+  }
+  .page-header { margin-bottom: 2rem; }
+  .page-header h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .page-header p { font-size: 13px; color: var(--text-secondary); }
+  .section-label {
+    font-size: 10px; font-weight: 500; color: var(--text-tertiary);
+    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px;
+  }
+  .matrix-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
+  table { border-collapse: collapse; font-size: 12px; }
+  table th { color: var(--text-secondary); font-weight: 400; padding: 4px 5px; text-align: center; min-width: 34px; }
+  table th.row-label { text-align: left; min-width: 110px; padding-left: 0; }
+  table td { padding: 3px; }
+  table td.row-label { font-size: 11px; color: var(--text-secondary); padding-right: 10px; white-space: nowrap; }
+  .cell {
+    width: 30px; height: 30px; border-radius: 6px;
+    border: 1.5px solid var(--border-md); background: var(--bg);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background .1s, border-color .1s; user-select: none;
+  }
+  .cell:hover { border-color: var(--purple); }
+  .cell.on { background: var(--purple); border-color: var(--purple-dark); }
+  .cell.on::after { content: ''; display: block; width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,0.9); }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 1.5rem; }
+  .btn-ghost {
+    font-size: 12px; padding: 5px 11px;
+    border: 0.5px dashed var(--border-md); border-radius: var(--radius-md);
+    background: transparent; color: var(--text-tertiary); cursor: pointer; transition: all .15s;
+  }
+  .btn-ghost:hover { color: var(--text-secondary); border-style: solid; background: var(--bg-secondary); }
+  .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+  @media (max-width: 600px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 12px 14px; text-align: center; }
+  .card-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .card-val { font-size: 22px; font-weight: 500; }
+  .card-sub { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+  .card.highlight .card-val { color: var(--purple); }
+  .recommendation {
+    border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 14px 16px; margin-bottom: 1.5rem;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .rec-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .rec-text { font-size: 13px; line-height: 1.6; }
+  .rec-text strong { font-weight: 500; }
+  .chart-area { position: relative; height: 160px; margin-bottom: 4px; }
+  .x-axis-label { font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 2px; margin-bottom: 6px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; color: var(--text-secondary); margin-top: 6px; margin-bottom: 1.5rem; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .divider { height: 0.5px; background: var(--border); margin: 1.25rem 0; }
+  .params { display: flex; flex-direction: column; gap: 10px; }
+  .p-row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .p-label { font-size: 12px; color: var(--text-secondary); min-width: 200px; }
+  .p-val { font-size: 13px; font-weight: 500; }
+  .p-note { font-size: 11px; color: var(--text-tertiary); }
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 0.5px solid var(--border); font-size: 11px; color: var(--text-tertiary); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <h1>Problem discovery estimator</h1>
+    <p>Click cells to mark which participants found which problems. Results update live.</p>
+  </div>
+
+  <div class="section-label">Participant &times; problem matrix</div>
+  <div class="matrix-wrap"><table id="matrix-table"></table></div>
+
+  <div class="controls">
+    <button class="btn-ghost" onclick="addParticipant()">+ participant</button>
+    <button class="btn-ghost" onclick="addProblem()">+ problem</button>
+    <button class="btn-ghost" onclick="removeParticipant()">&minus; participant</button>
+    <button class="btn-ghost" onclick="removeProblem()">&minus; problem</button>
+  </div>
+
+  <div class="section-label">Results</div>
+  <div class="cards">
+    <div class="card highlight">
+      <div class="card-label">% found</div>
+      <div class="card-val" id="pct-found">â</div>
+      <div class="card-sub">of discoverable problems</div>
+    </div>
+    <div class="card">
+      <div class="card-label">problems found</div>
+      <div class="card-val" id="found-count">â</div>
+      <div class="card-sub">in this study</div>
+    </div>
+    <div class="card">
+      <div class="card-label">est. total</div>
+      <div class="card-val" id="total-est">â</div>
+      <div class="card-sub">in the design</div>
+    </div>
+    <div class="card">
+      <div class="card-label">still hidden</div>
+      <div class="card-val" id="hidden-est">â</div>
+      <div class="card-sub">est. undiscovered</div>
+    </div>
+  </div>
+
+  <div class="recommendation" id="rec-box">
+    <div class="rec-dot" id="rec-dot" style="background:#888;"></div>
+    <div class="rec-text" id="rec-text">Enter your matrix data to get a recommendation.</div>
+  </div>
+
+  <div class="section-label">Discovery curve</div>
+  <div class="chart-area"><canvas id="disc-chart"></canvas></div>
+  <div class="x-axis-label">number of participants (n)</div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:#7F77DD"></span>cumulative % found</span>
+    <span><span class="legend-dot" style="background:#1D9E75"></span>marginal gain per +1 participant</span>
+    <span id="current-marker-legend" style="display:none">
+      <span class="legend-dot" style="background:#D85A30; border-radius:2px; width:10px; height:3px;"></span>current n
+    </span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Probability parameters</div>
+  <div class="params">
+    <div class="p-row">
+      <div class="p-label">Observed avg p (per problem)</div>
+      <div class="p-val" id="p-obs">â</div>
+      <div class="p-note">mean occurrence rate across problems</div>
+    </div>
+    <div class="p-row">
+      <div class="p-label">Lewis-adjusted p</div>
+      <div class="p-val" id="p-adj">â</div>
+      <div class="p-note">corrects small-sample overestimation (Sauro &amp; Lewis 2016)</div>
+    </div>
+    <div class="p-row">
+      <div class="p-label">P(find any problem | current n)</div>
+      <div class="p-val" id="p-find">â</div>
+      <div class="p-note">1 &minus; (1 &minus; p_adj)^n</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Method: Lewis (2001) adjusted p correction &middot; Sauro &amp; Lewis (2016) formative sample size framework.
+    Formula: P(discover) = 1 &minus; (1 &minus; p_adj)^n &middot; Adjusted p = 0.9 &times; p_obs &minus; 0.046.
+    85% threshold recommended for sufficient coverage.
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let nP = 5, nPr = 8;
+let matrix = Array.from({length: nP}, () => Array(nPr).fill(0));
+let chartInst = null;
+
+function toggleCell(r, c) {
+  matrix[r][c] = matrix[r][c] ? 0 : 1;
+  const cell = document.getElementById('cell-' + r + '-' + c);
+  if (cell) cell.classList.toggle('on', !!matrix[r][c]);
+  update();
+}
+
+function buildTable() {
+  const t = document.getElementById('matrix-table');
+  let html = '<tr><th class="row-label"></th>';
+  for (let c = 0; c < nPr; c++) html += '<th>P' + (c + 1) + '</th>';
+  html += '</tr>';
+  for (let r = 0; r < nP; r++) {
+    html += '<tr><td class="row-label">Participant ' + (r + 1) + '</td>';
+    for (let c = 0; c < nPr; c++) {
+      const on = matrix[r][c] ? ' on' : '';
+      html += '<td><div class="cell' + on + '" id="cell-' + r + '-' + c + '" onclick="toggleCell(' + r + ',' + c + ')"></div></td>';
+    }
+    html += '</tr>';
+  }
+  t.innerHTML = html;
+}
+
+function addParticipant() { matrix.push(Array(nPr).fill(0)); nP++; buildTable(); update(); }
+function addProblem() { matrix.forEach(row => row.push(0)); nPr++; buildTable(); update(); }
+function removeParticipant() { if (nP <= 2) return; matrix.pop(); nP--; buildTable(); update(); }
+function removeProblem() { if (nPr <= 2) return; matrix.forEach(row => row.pop()); nPr--; buildTable(); update(); }
+
+function lewisAdj(p) { return Math.max(0.01, 0.9 * p - 0.046); }
+function pFind(p, n) { return 1 - Math.pow(1 - p, n); }
+
+function update() {
+  const colSums = Array(nPr).fill(0);
+  for (let r = 0; r < nP; r++)
+    for (let c = 0; c < nPr; c++)
+      colSums[c] += matrix[r][c];
+
+  const foundProblems = colSums.filter(s => s > 0).length;
+  const rates = colSums.filter(s => s > 0).map(s => s / nP);
+  const pObs = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+  const pAdj = foundProblems > 0 ? lewisAdj(pObs) : 0;
+  const pF = pAdj > 0 ? pFind(pAdj, nP) : 0;
+  const totalEst = pF > 0 ? foundProblems / pF : foundProblems;
+  const hidden = Math.max(0, totalEst - foundProblems);
+  const pctFound = pF > 0 ? pF * 100 : 0;
+
+  document.getElementById('pct-found').textContent = foundProblems > 0 ? pctFound.toFixed(0) + '%' : 'â';
+  document.getElementById('found-count').textContent = foundProblems;
+  document.getElementById('total-est').textContent = foundProblems > 0 ? Math.round(totalEst) : 'â';
+  document.getElementById('hidden-est').textContent = foundProblems > 0 ? Math.round(hidden) : 'â';
+  document.getElementById('p-obs').textContent = foundProblems > 0 ? pObs.toFixed(3) : 'â';
+  document.getElementById('p-adj').textContent = foundProblems > 0 ? pAdj.toFixed(3) : 'â';
+  document.getElementById('p-find').textContent = foundProblems > 0 ? (pF * 100).toFixed(1) + '%' : 'â';
+
+  const rb = document.getElementById('rec-box');
+  const rd = document.getElementById('rec-dot');
+  const rt = document.getElementById('rec-text');
+
+  if (foundProblems === 0) {
+    rd.style.background = '#888'; rt.innerHTML = 'Enter your matrix data to get a recommendation.';
+    rb.style.borderColor = 'var(--border)';
+  } else if (pctFound >= 85) {
+    rd.style.background = '#1D9E75'; rb.style.borderColor = '#9FE1CB';
+    const nFor95 = Math.ceil(Math.log(1 - 0.95) / Math.log(1 - pAdj));
+    rt.innerHTML = '<strong>Good coverage.</strong> You\'ve likely found ~' + pctFound.toFixed(0) + '% of discoverable problems (est. ' + Math.round(hidden) + ' still hidden). ' + (nFor95 > nP ? 'Running ' + Math.max(1, nFor95 - nP) + ' more participants would push you toward 95% coverage.' : 'You are at or near 95% coverage.');
+  } else if (pctFound >= 70) {
+    rd.style.background = '#BA7517'; rb.style.borderColor = '#FAC775';
+    const nFor85 = Math.ceil(Math.log(1 - 0.85) / Math.log(1 - pAdj));
+    rt.innerHTML = '<strong>Moderate coverage.</strong> You\'ve found ~' + pctFound.toFixed(0) + '% of discoverable problems. Est. ' + Math.round(hidden) + ' remain. ' + (nFor85 > nP ? 'Run ' + Math.max(1, nFor85 - nP) + ' more participants to reach 85%.' : 'Consider one more round to close remaining gaps.');
+  } else {
+    rd.style.background = '#E24B4A'; rb.style.borderColor = '#F7C1C1';
+    const nFor85 = Math.ceil(Math.log(1 - 0.85) / Math.log(1 - pAdj));
+    rt.innerHTML = '<strong>Low coverage.</strong> Only ~' + pctFound.toFixed(0) + '% of discoverable problems found. Est. ' + Math.round(hidden) + ' still hidden. Run ' + Math.max(1, nFor85 - nP) + ' more participants to reach 85%.';
+  }
+
+  document.getElementById('current-marker-legend').style.display = pAdj > 0 ? 'inline-flex' : 'none';
+  drawChart(pAdj, nP);
+}
+
+function drawChart(pAdj, currentN) {
+  const maxN = Math.max(currentN + 8, 16);
+  const labels = [], cumData = [], margData = [];
+  for (let n = 1; n <= maxN; n++) {
+    labels.push(n);
+    const pf = pFind(pAdj, n);
+    cumData.push(parseFloat((pf * 100).toFixed(1)));
+    const prev = n > 1 ? pFind(pAdj, n - 1) : 0;
+    margData.push(parseFloat(((pf - prev) * 100).toFixed(1)));
+  }
+
+  const ctx = document.getElementById('disc-chart').getContext('2d');
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+
+  chartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'marginal', data: margData, backgroundColor: 'rgba(29,158,117,0.22)', borderColor: 'rgba(29,158,117,0.5)', borderWidth: 1, yAxisID: 'y2', type: 'bar', order: 2 },
+        { label: 'cumulative', data: cumData, borderColor: '#7F77DD', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, type: 'line', tension: 0.4, yAxisID: 'y1', order: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ctx.dataset.label === 'cumulative' ? ctx.parsed.y.toFixed(1) + '% cumulative' : ctx.parsed.y.toFixed(1) + '% marginal gain' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { display: false } },
+        y1: { position: 'left', min: 0, max: 100, ticks: { callback: v => v + '%', font: { size: 10 }, color: '#888780', maxTicksLimit: 5 }, grid: { color: 'rgba(136,135,128,0.12)' } },
+        y2: { position: 'right', min: 0, grid: { display: false }, ticks: { display: false } }
+      }
+    },
+    plugins: [{
+      id: 'currentNLine',
+      afterDraw(chart) {
+        if (!pAdj || currentN < 1) return;
+        const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+        const xPos = x.getPixelForValue(currentN - 1);
+        ctx.save();
+        ctx.strokeStyle = '#D85A30'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(xPos, top); ctx.lineTo(xPos, bottom); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#D85A30'; ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('n=' + currentN, xPos, top - 4);
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+buildTable();
+update();
+</script>
+</body>
+</html>
